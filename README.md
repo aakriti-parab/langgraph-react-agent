@@ -23,8 +23,9 @@ An intelligent command-line AI assistant built using **LangGraph**, **LangChain*
 - **LangGraph**
 - **LangChain**
 - **Groq API**
+- **Llama 3.3 70B Versatile**
 - **LangChain-Groq**
-- **Wikipedia API**
+- WikipediaAPIWrapper
 - **PyPDF**
 - **Python Dotenv**
 
