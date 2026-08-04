@@ -1,44 +1,62 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+import logging
 
 from graph import get_agent
+
+# -------------------------------------------------
+# Logging
+# -------------------------------------------------
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
+logger = logging.getLogger(__name__)
+
+# -------------------------------------------------
+# FastAPI
+# -------------------------------------------------
 
 app = FastAPI(
     title="LangGraph ReAct API",
     version="1.0.0"
 )
 
-# -------------------------------------------------------
-# CORS CONFIGURATION
-# Allows the React frontend to communicate with FastAPI
-# -------------------------------------------------------
+# -------------------------------------------------
+# CORS
+# -------------------------------------------------
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ],
+    allow_origins=["http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# -------------------------------------------------
+# LangGraph Agent
+# -------------------------------------------------
+
 agent = get_agent()
 
+# -------------------------------------------------
+# Models
+# -------------------------------------------------
 
-# -------------------------------------------------------
-# REQUEST MODEL
-# -------------------------------------------------------
 class QuestionRequest(BaseModel):
     question: str
     session_id: str
 
 
-# -------------------------------------------------------
-# HOME ROUTE
-# -------------------------------------------------------
+# -------------------------------------------------
+# Home
+# -------------------------------------------------
+
 @app.get("/")
 def home():
     return {
@@ -46,11 +64,18 @@ def home():
     }
 
 
-# -------------------------------------------------------
-# NORMAL CHAT ENDPOINT
-# -------------------------------------------------------
+# -------------------------------------------------
+# Ask Endpoint
+# -------------------------------------------------
+
 @app.post("/ask")
 def ask_question(request: QuestionRequest):
+
+    if request.question.strip() == "":
+        raise HTTPException(
+            status_code=400,
+            detail="Question cannot be empty."
+        )
 
     config = {
         "configurable": {
@@ -81,18 +106,25 @@ def ask_question(request: QuestionRequest):
             "answer": answer
         }
 
-    except Exception as e:
+    except Exception:
 
-        return {
-            "success": False,
-            "error": str(e)
-        }
+        logger.exception("Agent execution failed")
+
+        raise HTTPException(
+            status_code=500,
+            detail="Internal Server Error. Please try again."
+        )
 
 
-# -------------------------------------------------------
-# STREAMING GENERATOR
-# -------------------------------------------------------
+# -------------------------------------------------
+# Streaming Generator
+# -------------------------------------------------
+
 def generate_stream(question: str, session_id: str):
+
+    if question.strip() == "":
+        yield "data: Error: Question cannot be empty.\n\n"
+        return
 
     config = {
         "configurable": {
@@ -122,14 +154,17 @@ def generate_stream(question: str, session_id: str):
 
         yield "data: [DONE]\n\n"
 
-    except Exception as e:
+    except Exception:
 
-        yield f"data: Error: {str(e)}\n\n"
+        logger.exception("Streaming failed")
+
+        yield "data: Internal Server Error\n\n"
 
 
-# -------------------------------------------------------
-# STREAM ENDPOINT
-# -------------------------------------------------------
+# -------------------------------------------------
+# Stream Endpoint
+# -------------------------------------------------
+
 @app.get("/stream")
 def stream(question: str, session_id: str):
 
