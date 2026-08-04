@@ -2,7 +2,6 @@ import "./App.css";
 import { useState } from "react";
 
 function App() {
-
   const [question, setQuestion] = useState("");
 
   const [messages, setMessages] = useState([
@@ -21,12 +20,16 @@ function App() {
 
     const currentQuestion = question;
 
-    // Show user's message immediately
+    // Show user message
     setMessages((prev) => [
       ...prev,
       {
         sender: "user",
         text: currentQuestion
+      },
+      {
+        sender: "assistant",
+        text: ""
       }
     ]);
 
@@ -34,48 +37,71 @@ function App() {
 
     try {
 
-      const response = await fetch("http://127.0.0.1:8000/ask", {
+      const response = await fetch(
 
-        method: "POST",
+        `http://127.0.0.1:8000/stream?question=${encodeURIComponent(currentQuestion)}&session_id=${sessionId}`
 
-        headers: {
-          "Content-Type": "application/json"
-        },
+      );
 
-        body: JSON.stringify({
+      const reader = response.body.getReader();
 
-          question: currentQuestion,
-          session_id: sessionId
+      const decoder = new TextDecoder();
 
-        })
+      let assistantReply = "";
 
-      });
+      while (true) {
 
-      const data = await response.json();
+        const { done, value } = await reader.read();
 
-      setMessages((prev) => [
+        if (done) break;
 
-        ...prev,
+        const chunk = decoder.decode(value);
 
-        {
-          sender: "assistant",
-          text: data.answer
+        const lines = chunk.split("\n");
+
+        for (let line of lines) {
+
+          if (!line.startsWith("data: ")) continue;
+
+          const token = line.replace("data: ", "");
+
+          if (token === "[DONE]") continue;
+
+          assistantReply += token;
+
+          setMessages((prev) => {
+
+            const updated = [...prev];
+
+            updated[updated.length - 1] = {
+              sender: "assistant",
+              text: assistantReply
+            };
+
+            return updated;
+
+          });
+
         }
 
-      ]);
+      }
 
     } catch (error) {
 
-      setMessages((prev) => [
+      setMessages((prev) => {
 
-        ...prev,
+        const updated = [...prev];
 
-        {
+        updated[updated.length - 1] = {
+
           sender: "assistant",
-          text: "❌ Could not connect to backend."
-        }
+          text: "❌ Error connecting to backend."
 
-      ]);
+        };
+
+        return updated;
+
+      });
 
     }
 
@@ -95,9 +121,7 @@ function App() {
             key={index}
             className={`message ${msg.sender}`}
           >
-
             {msg.text}
-
           </div>
 
         ))}
@@ -123,7 +147,9 @@ function App() {
         />
 
         <button onClick={sendMessage}>
+
           Send
+
         </button>
 
       </div>
