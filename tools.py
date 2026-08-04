@@ -2,7 +2,7 @@ from datetime import datetime
 
 from langchain_core.tools import tool
 from langchain_community.utilities import WikipediaAPIWrapper
-from duckduckgo_search import DDGS
+from ddgs import DDGS
 from pypdf import PdfReader
 
 # -------------------------------------------------
@@ -22,11 +22,14 @@ def calculator(expression: str) -> str:
     """
 
     try:
+
         result = eval(expression, {"__builtins__": {}}, {})
+
         return f"The answer is {result}"
 
-    except Exception as e:
-        return f"Calculator Error: {e}"
+    except Exception:
+
+        return ""
 
 
 # -------------------------------------------------
@@ -49,7 +52,23 @@ def current_time(_: str = "") -> str:
 @tool
 def wikipedia_search(query: str) -> str:
     """
-    Search Wikipedia for encyclopedia-style information.
+    Search Wikipedia for encyclopedia information.
+
+    Use ONLY for:
+    - Famous people
+    - History
+    - Countries
+    - Science
+    - Geography
+    - Biology
+    - Physics
+
+    NOT for:
+    - Programming
+    - AI frameworks
+    - GitHub
+    - Software
+    - Latest technology
     """
 
     try:
@@ -57,51 +76,80 @@ def wikipedia_search(query: str) -> str:
         result = wiki.run(query)
 
         if not result:
-            return "No Wikipedia results found."
+            return ""
+
+        if "No good Wikipedia Search Result" in result:
+            return ""
+
+        if "Page:" not in result:
+            return ""
 
         return result
 
-    except Exception as e:
+    except Exception:
 
-        return f"Wikipedia Search Error: {e}"
+        return ""
 
 
 # -------------------------------------------------
-# DuckDuckGo Web Search
+# Web Search
 # -------------------------------------------------
 
 @tool
 def web_search(query: str) -> str:
     """
-    Search the internet for recent information,
-    current events, sports, news, weather,
-    technology and live information.
+    Search the web.
+
+    Use for:
+    - Programming
+    - LangGraph
+    - LangChain
+    - FastAPI
+    - React
+    - Docker
+    - Python
+    - GitHub
+    - AI
+    - Technology
+    - News
+    - Sports
+    - Weather
+    - Current events
     """
 
     try:
 
         with DDGS() as ddgs:
 
-            results = list(ddgs.text(query, max_results=5))
+            results = list(
+                ddgs.text(
+                    query,
+                    max_results=5
+                )
+            )
 
         if len(results) == 0:
-            return "No search results found."
+            return ""
 
         answer = ""
 
         for i, result in enumerate(results, start=1):
 
+            title = result.get("title", "")
+            body = result.get("body", "")
+            href = result.get("href", "")
+
             answer += (
-                f"{i}. {result['title']}\n"
-                f"{result['body']}\n"
-                f"{result['href']}\n\n"
+                f"{i}. {title}\n"
+                f"{body}\n"
+                f"{href}\n\n"
             )
 
         return answer
 
-    except Exception as e:
+    except Exception:
 
-        return f"Web Search Error: {e}"
+        return ""
 
 
 # -------------------------------------------------
@@ -129,9 +177,11 @@ def read_pdf(file_path: str, max_chars: int = 5000) -> str:
                 text += page_text + "\n"
 
         if not text.strip():
+
             return "No readable text found."
 
         if len(text) > max_chars:
+
             return text[:max_chars] + "\n\n[Output truncated]"
 
         return text
@@ -148,7 +198,13 @@ def read_pdf(file_path: str, max_chars: int = 5000) -> str:
 # -------------------------------------------------
 # Register Tools
 # -------------------------------------------------
-
+print("\n========== REGISTERED TOOLS ==========")
+print(calculator.name)
+print(current_time.name)
+print(wikipedia_search.name)
+print(web_search.name)
+print(read_pdf.name)
+print("======================================\n")
 tools = [
     calculator,
     current_time,

@@ -4,6 +4,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import logging
 
+from langchain_core.messages import AIMessageChunk
 from graph import get_agent
 
 # -------------------------------------------------
@@ -39,13 +40,13 @@ app.add_middleware(
 )
 
 # -------------------------------------------------
-# LangGraph Agent
+# Agent
 # -------------------------------------------------
 
 agent = get_agent()
 
 # -------------------------------------------------
-# Models
+# Request Model
 # -------------------------------------------------
 
 class QuestionRequest(BaseModel):
@@ -71,7 +72,7 @@ def home():
 @app.post("/ask")
 def ask_question(request: QuestionRequest):
 
-    if request.question.strip() == "":
+    if not request.question.strip():
         raise HTTPException(
             status_code=400,
             detail="Question cannot be empty."
@@ -112,7 +113,7 @@ def ask_question(request: QuestionRequest):
 
         raise HTTPException(
             status_code=500,
-            detail="Internal Server Error. Please try again."
+            detail="Internal Server Error"
         )
 
 
@@ -122,8 +123,8 @@ def ask_question(request: QuestionRequest):
 
 def generate_stream(question: str, session_id: str):
 
-    if question.strip() == "":
-        yield "data: Error: Question cannot be empty.\n\n"
+    if not question.strip():
+        yield "data: Question cannot be empty.\n\n"
         return
 
     config = {
@@ -147,6 +148,10 @@ def generate_stream(question: str, session_id: str):
             stream_mode="messages"
         ):
 
+            # Ignore tool outputs
+            if not isinstance(chunk, AIMessageChunk):
+                continue
+
             if not chunk.content:
                 continue
 
@@ -162,7 +167,7 @@ def generate_stream(question: str, session_id: str):
 
 
 # -------------------------------------------------
-# Stream Endpoint
+# Streaming Endpoint
 # -------------------------------------------------
 
 @app.get("/stream")
