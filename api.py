@@ -11,15 +11,10 @@ app = FastAPI(
 
 agent = get_agent()
 
-config = {
-    "configurable": {
-        "thread_id": "user-1"
-    }
-}
-
 
 class QuestionRequest(BaseModel):
     question: str
+    session_id: str
 
 
 @app.get("/")
@@ -31,7 +26,15 @@ def home():
 
 @app.post("/ask")
 def ask_question(request: QuestionRequest):
+
+    config = {
+        "configurable": {
+            "thread_id": request.session_id
+        }
+    }
+
     try:
+
         response = agent.invoke(
             {
                 "messages": [
@@ -48,23 +51,29 @@ def ask_question(request: QuestionRequest):
 
         return {
             "success": True,
+            "session_id": request.session_id,
             "question": request.question,
             "answer": answer
         }
 
     except Exception as e:
+
         return {
             "success": False,
             "error": str(e)
         }
 
 
-def generate_stream(question: str):
-    """
-    Streams the AI response token by token using LangGraph + SSE.
-    """
+def generate_stream(question: str, session_id: str):
+
+    config = {
+        "configurable": {
+            "thread_id": session_id
+        }
+    }
 
     try:
+
         for chunk, metadata in agent.stream(
             {
                 "messages": [
@@ -78,22 +87,22 @@ def generate_stream(question: str):
             stream_mode="messages"
         ):
 
-            # Ignore empty chunks
             if not chunk.content:
                 continue
 
             yield f"data: {chunk.content}\n\n"
 
-        # Notify browser that streaming has finished
         yield "data: [DONE]\n\n"
 
     except Exception as e:
+
         yield f"data: Error: {str(e)}\n\n"
 
 
 @app.get("/stream")
-def stream(question: str):
+def stream(question: str, session_id: str):
+
     return StreamingResponse(
-        generate_stream(question),
+        generate_stream(question, session_id),
         media_type="text/event-stream"
     )
